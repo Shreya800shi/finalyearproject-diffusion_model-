@@ -1,4 +1,5 @@
 import torch
+import time
 import numpy as np
 from tqdm import tqdm
 from ddpm import DDPMSampler
@@ -22,6 +23,7 @@ def generate(
     device=None,
     idle_device=None,
     tokenizer=None,
+    progress_callback=None
 ):
     with torch.no_grad():
         if not 0 < strength <= 1:
@@ -115,6 +117,7 @@ def generate(
         diffusion.to(device)
 
         timesteps = tqdm(sampler.timesteps)
+        step_start_time = time.time()
         for i, timestep in enumerate(timesteps):
             # (1, 320)
             time_embedding = get_time_embedding(timestep).to(device)
@@ -137,6 +140,12 @@ def generate(
             # (Batch_Size, 4, Latents_Height, Latents_Width) -> (Batch_Size, 4, Latents_Height, Latents_Width)
             latents = sampler.step(timestep, latents, model_output)
 
+            # Call progress callback after each step
+            if progress_callback:
+                step_time = time.time() - step_start_time
+                progress_callback(i, len(sampler.timesteps), step_time)
+                step_start_time = time.time()
+
         to_idle(diffusion)
 
         decoder = models["decoder"]
@@ -150,7 +159,7 @@ def generate(
         images = images.permute(0, 2, 3, 1)
         images = images.to("cpu", torch.uint8).numpy()
         return images[0]
-    
+ 
 def rescale(x, old_range, new_range, clamp=False):
     old_min, old_max = old_range
     new_min, new_max = new_range
