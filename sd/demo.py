@@ -1,5 +1,5 @@
-import model_loader
-import pipeline
+import sd.model_loader as model_loader
+import sd.pipeline as pipeline
 from PIL import Image
 from pathlib import Path
 from transformers import CLIPTokenizer
@@ -16,8 +16,8 @@ elif (torch.has_mps or torch.backends.mps.is_available()) and ALLOW_MPS:
     DEVICE = "mps"
 print(f"Using device: {DEVICE}")
 
-tokenizer = CLIPTokenizer("../data/vocab.json", merges_file="../data/merges.txt")
-model_file = "../data/v1-5-pruned-emaonly.ckpt"
+tokenizer = CLIPTokenizer("./data/vocab.json", merges_file="./data/merges.txt")
+model_file = "./data/v1-5-pruned-emaonly.ckpt"
 models = model_loader.preload_models_from_standard_weights(model_file, DEVICE)
 
 ## TEXT TO IMAGE
