@@ -29,16 +29,14 @@ class DiffusionModel:
                 seed=seed,
                 progress_callback=progress_callback
             )
-            # Save the output image to a temporary file
-            output_path = "temp_output.png"
-            Image.fromarray(output_image).save(output_path)
-            return output_path
+            # Return the NumPy array directly
+            return output_image
         except Exception as e:
             raise RuntimeError(f"Diffusion model failed: {str(e)}")
 
 class Worker(QObject):
     progress = pyqtSignal(int, int, float)  # step, total_steps, step_time
-    finished = pyqtSignal(str)  # output_path
+    finished = pyqtSignal(np.ndarray)  # output_image
     error = pyqtSignal(str)  # error message
 
     def __init__(self, image_path, sentence, uncond_prompt, strength, do_cfg, cfg_scale, sampler, num_inference_steps, seed):
@@ -58,11 +56,11 @@ class Worker(QObject):
             def progress_callback(step, total_steps, step_time):
                 self.progress.emit(step, total_steps, step_time)
 
-            output_path = DiffusionModel.process(
+            output_image = DiffusionModel.process(
                 self.image_path, self.sentence, self.uncond_prompt, self.strength, self.do_cfg,
                 self.cfg_scale, self.sampler, self.num_inference_steps, self.seed, progress_callback
             )
-            self.finished.emit(output_path)
+            self.finished.emit(output_image)
         except Exception as e:
             self.error.emit(str(e))
 
@@ -129,6 +127,7 @@ class ImageApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Image and Sentence Processor")
         self.image_path = None
+        self.output_image = None  # Store output image for download
         self._gradient_color = QColor("#f0f0f0")  # Initial color
         # Set initial size and remove minimum size constraints
         self.resize(1280, 720)
@@ -151,6 +150,9 @@ class ImageApp(QMainWindow):
         left_widget = QWidget()
         left_layout = QVBoxLayout()
         left_widget.setLayout(left_layout)
+
+        # Add top spacer for vertical centering
+        left_layout.addStretch()
 
         # Set larger font for all widgets
         large_font = QFont("Arial", 14)
@@ -194,7 +196,7 @@ class ImageApp(QMainWindow):
         # Use Default Parameters checkbox
         self.default_params_checkbox = QCheckBox("Use Default Parameters")
         self.default_params_checkbox.setFont(large_font)
-        self.default_params_checkbox.setStyleSheet("margin: 10px;")
+        self.default_params_checkbox.setStyleSheet("transform: scale(1.5); margin: 15px;")
         self.default_params_checkbox.setChecked(True)
         self.default_params_checkbox.stateChanged.connect(self.toggle_default_params)
         left_layout.addWidget(self.default_params_checkbox)
@@ -202,12 +204,13 @@ class ImageApp(QMainWindow):
         # Custom parameters widget
         self.params_widget = QWidget()
         self.params_widget.setStyleSheet("""
-            background-color: #7E7D9C;
+            background-color: #8B8A7B;
             border-radius: 15px;
             margin: 20px;
             padding: 20px;
         """)
         params_layout = QVBoxLayout()
+        params_layout.setSpacing(0)  # No gaps between elements
         self.params_widget.setLayout(params_layout)
 
         # Strength input
@@ -220,12 +223,37 @@ class ImageApp(QMainWindow):
         self.strength_slider.setMinimum(1)  # 0.01 * 100
         self.strength_slider.setMaximum(100)  # 1.0 * 100
         self.strength_slider.setValue(90)  # 0.9 * 100
-        self.strength_slider.setStyleSheet("margin: 10px;")
+        self.strength_slider.setStyleSheet("""
+            QSlider::handle:horizontal {
+                background: #2776EA;
+                border: 1px solid #2776EA;
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                margin: -5px 0;
+            }
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: #d3d3d3;
+                border-radius: 2px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #2776EA;
+                border-radius: 2px;
+            }
+            margin: 10px;
+        """)
         strength_layout.addWidget(self.strength_slider)
         self.strength_input = QLineEdit("0.9")
         self.strength_input.setFont(large_font)
-        self.strength_input.setStyleSheet("padding: 5px; margin: 10px; width: 60px;")
-        self.strength_input.setFixedWidth(60)
+        self.strength_input.setStyleSheet("""
+            background-color: #f0f0f0;
+            border: none;
+            border-radius: 8px;
+            padding: 5px;
+            margin: 10px;
+        """)
+        self.strength_input.setFixedWidth(100)
         strength_layout.addWidget(self.strength_input)
         params_layout.addLayout(strength_layout)
 
@@ -239,12 +267,37 @@ class ImageApp(QMainWindow):
         self.cfg_scale_slider.setMinimum(100)  # 1 * 100
         self.cfg_scale_slider.setMaximum(1400)  # 14 * 100
         self.cfg_scale_slider.setValue(800)  # 8 * 100
-        self.cfg_scale_slider.setStyleSheet("margin: 10px;")
+        self.cfg_scale_slider.setStyleSheet("""
+            QSlider::handle:horizontal {
+                background: #2776EA;
+                border: 1px solid #2776EA;
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                margin: -5px 0;
+            }
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: #d3d3d3;
+                border-radius: 2px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #2776EA;
+                border-radius: 2px;
+            }
+            margin: 10px;
+        """)
         cfg_scale_layout.addWidget(self.cfg_scale_slider)
         self.cfg_scale_input = QLineEdit("8")
         self.cfg_scale_input.setFont(large_font)
-        self.cfg_scale_input.setStyleSheet("padding: 5px; margin: 10px; width: 60px;")
-        self.cfg_scale_input.setFixedWidth(60)
+        self.cfg_scale_input.setStyleSheet("""
+            background-color: #f0f0f0;
+            border: none;
+            border-radius: 8px;
+            padding: 5px;
+            margin: 10px;
+        """)
+        self.cfg_scale_input.setFixedWidth(100)
         cfg_scale_layout.addWidget(self.cfg_scale_input)
         params_layout.addLayout(cfg_scale_layout)
 
@@ -258,12 +311,37 @@ class ImageApp(QMainWindow):
         self.steps_slider.setMinimum(1)
         self.steps_slider.setMaximum(200)
         self.steps_slider.setValue(50)
-        self.steps_slider.setStyleSheet("margin: 10px;")
+        self.steps_slider.setStyleSheet("""
+            QSlider::handle:horizontal {
+                background: #2776EA;
+                border: 1px solid #2776EA;
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                margin: -5px 0;
+            }
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: #d3d3d3;
+                border-radius: 2px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #2776EA;
+                border-radius: 2px;
+            }
+            margin: 10px;
+        """)
         steps_layout.addWidget(self.steps_slider)
         self.steps_input = QLineEdit("50")
         self.steps_input.setFont(large_font)
-        self.steps_input.setStyleSheet("padding: 5px; margin: 10px; width: 60px;")
-        self.steps_input.setFixedWidth(60)
+        self.steps_input.setStyleSheet("""
+            background-color: #f0f0f0;
+            border: none;
+            border-radius: 8px;
+            padding: 5px;
+            margin: 10px;
+        """)
+        self.steps_input.setFixedWidth(100)
         steps_layout.addWidget(self.steps_input)
         params_layout.addLayout(steps_layout)
 
@@ -289,7 +367,13 @@ class ImageApp(QMainWindow):
         # Generate button
         self.generate_btn = QPushButton("Generate")
         self.generate_btn.setFont(large_font)
-        self.generate_btn.setStyleSheet("padding: 15px; margin: 10px;")
+        self.generate_btn.setStyleSheet("""
+            background-color: #01d449;
+            color: white;
+            border-radius: 30px;
+            padding: 15px;
+            margin: 10px;
+        """)
         self.generate_btn.setMinimumHeight(60)
         self.generate_btn.clicked.connect(self.start_processing)
         left_layout.addWidget(self.generate_btn)
@@ -316,7 +400,7 @@ class ImageApp(QMainWindow):
         self.elapsed_label.setVisible(False)
         left_layout.addWidget(self.elapsed_label)
 
-        # Spacer to push items up
+        # Add bottom spacer for vertical centering
         left_layout.addStretch()
 
         # Separator
@@ -333,6 +417,9 @@ class ImageApp(QMainWindow):
         right_widget = QWidget()
         right_layout = QVBoxLayout()
         right_widget.setLayout(right_layout)
+
+        # Add top spacer for vertical centering
+        right_layout.addStretch()
 
         # Input Image Section
         self.input_label = QLabel("Input Image:")
@@ -376,7 +463,22 @@ class ImageApp(QMainWindow):
         self.output_image_label.mousePressEvent = self.show_full_screen_output
         right_layout.addWidget(self.output_image_label)
 
-        # Spacer to push content up
+        # Download button
+        self.download_btn = QPushButton("Download")
+        self.download_btn.setFont(large_font)
+        self.download_btn.setStyleSheet("""
+            background-color: #2776EA;
+            color: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin: 10px;
+        """)
+        self.download_btn.setMinimumHeight(60)
+        self.download_btn.setVisible(False)
+        self.download_btn.clicked.connect(self.download_image)
+        right_layout.addWidget(self.download_btn)
+
+        # Add bottom spacer for vertical centering
         right_layout.addStretch()
 
         # Add widgets to splitter with separator
@@ -389,9 +491,40 @@ class ImageApp(QMainWindow):
         separator.setMinimumSize(3, 0)
 
     def toggle_default_params(self):
-        # Enable/disable custom parameter inputs based on checkbox
-        enabled = not self.default_params_checkbox.isChecked()
-        self.params_widget.setEnabled(enabled)
+        # Enable/disable custom parameter inputs, reset to defaults, and update background
+        is_checked = self.default_params_checkbox.isChecked()
+        self.params_widget.setEnabled(not is_checked)
+        bg_color = "#4d495b" if is_checked else "#8B8A7B"
+        self.params_widget.setStyleSheet(f"""
+            background-color: {bg_color};
+            border-radius: 15px;
+            margin: 20px;
+            padding: 20px;
+        """)
+        if is_checked:
+            # Block signals to prevent recursive updates
+            self.strength_slider.blockSignals(True)
+            self.strength_input.blockSignals(True)
+            self.cfg_scale_slider.blockSignals(True)
+            self.cfg_scale_input.blockSignals(True)
+            self.steps_slider.blockSignals(True)
+            self.steps_input.blockSignals(True)
+
+            # Reset to default values
+            self.strength_slider.setValue(90)  # 0.9 * 100
+            self.strength_input.setText("0.9")
+            self.cfg_scale_slider.setValue(800)  # 8 * 100
+            self.cfg_scale_input.setText("8")
+            self.steps_slider.setValue(50)
+            self.steps_input.setText("50")
+
+            # Re-enable signals
+            self.strength_slider.blockSignals(False)
+            self.strength_input.blockSignals(False)
+            self.cfg_scale_slider.blockSignals(False)
+            self.cfg_scale_input.blockSignals(False)
+            self.steps_slider.blockSignals(False)
+            self.steps_input.blockSignals(False)
 
     def update_strength_input(self):
         value = self.strength_slider.value() / 100.0
@@ -473,6 +606,22 @@ class ImageApp(QMainWindow):
             dialog.showFullScreen()
             dialog.exec_()
 
+    def download_image(self):
+        if self.output_image is None:
+            QMessageBox.warning(self, "Error", "No output image available to download.")
+            return
+        # Open save file dialog
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Save Image", "", "PNG Files (*.png);;JPEG Files (*.jpg *.jpeg);;All Files (*)"
+        )
+        if file_path:
+            try:
+                # Convert NumPy array to PIL Image and save
+                Image.fromarray(self.output_image).save(file_path)
+                QMessageBox.information(self, "Success", "Image saved successfully.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
+
     def start_processing(self):
         # Validate inputs
         if not self.image_path:
@@ -489,6 +638,7 @@ class ImageApp(QMainWindow):
         self.default_params_checkbox.setEnabled(False)
         self.params_widget.setEnabled(False)
         self.generate_btn.setEnabled(False)
+        self.download_btn.setVisible(False)
         self.progress_bar.setVisible(True)
         self.eta_label.setVisible(True)
         self.elapsed_label.setVisible(True)
@@ -496,6 +646,7 @@ class ImageApp(QMainWindow):
 
         # Clear output image and start gradient animation
         self.output_image_label.setPixmap(QPixmap())
+        self.output_image = None
         self.start_gradient_animation()
 
         # Initialize progress tracking
@@ -572,7 +723,7 @@ class ImageApp(QMainWindow):
         elapsed_time = time.time() - self.start_time
         self.elapsed_label.setText(f"Elapsed: {elapsed_time:.1f} s")
 
-    def on_processing_finished(self, output_path):
+    def on_processing_finished(self, output_image):
         # Stop gradient animation and elapsed timer
         if hasattr(self, 'animation'):
             self.animation.stop()
@@ -584,14 +735,25 @@ class ImageApp(QMainWindow):
                 background-color: #f0f0f0;
             """)
         self.elapsed_timer.stop()
-        # Display output image
-        pixmap = QPixmap(output_path)
-        if not pixmap.isNull():
-            # Scale to fit within 350px height, accounting for 15px padding
-            scaled_pixmap = pixmap.scaled(512, 320, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.output_image_label.setPixmap(scaled_pixmap)
-        else:
-            QMessageBox.critical(self, "Error", "Failed to load output image.")
+        # Store output image for download
+        self.output_image = output_image
+        # Convert NumPy array to QPixmap
+        try:
+            pil_image = Image.fromarray(output_image)
+            pil_image = pil_image.convert("RGB")
+            data = pil_image.tobytes("raw", "RGB")
+            qimage = QImage(data, pil_image.width, pil_image.height, pil_image.width * 3, QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(qimage)
+            if not pixmap.isNull():
+                # Scale to fit within 350px height, accounting for 15px padding
+                scaled_pixmap = pixmap.scaled(512, 320, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.output_image_label.setPixmap(scaled_pixmap)
+                # Show download button
+                self.download_btn.setVisible(True)
+            else:
+                raise ValueError("Failed to convert image to pixmap")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load output image: {str(e)}")
         # Cleanup
         self.cleanup()
 
