@@ -1,0 +1,7 @@
+# Python-specific
+*.pyc
+__pycache__/
+
+# Project-specific
+# .env
+/data/v1-5-pruned-emaonly.ckpt
