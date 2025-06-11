@@ -1,3 +1,4 @@
+import os
 import sd.model_loader as model_loader
 import sd.pipeline as pipeline
 from PIL import Image
@@ -12,13 +13,18 @@ ALLOW_MPS = False
 
 if torch.cuda.is_available() and ALLOW_CUDA:
     DEVICE = "cuda"
-elif (torch.has_mps or torch.backends.mps.is_available()) and ALLOW_MPS:
+elif torch.backends.mps.is_built() and ALLOW_MPS:
     DEVICE = "mps"
 print(f"Using device: {DEVICE}")
 
+# Tokenizer (assuming files in sd/data/)
 tokenizer = CLIPTokenizer("./data/vocab.json", merges_file="./data/merges.txt")
-model_file = "./data/v1-5-pruned-emaonly.ckpt"
-models = model_loader.preload_models_from_standard_weights(model_file, DEVICE)
+# Model file path
+project_root = Path(__file__).resolve().parents[2]  # From sd/ to code/
+model_file = project_root / "data" / "v1-5-pruned-emaonly.ckpt"
+
+# Cache models to avoid reloading
+_models = None
 
 ## TEXT TO IMAGE
 
@@ -63,12 +69,23 @@ uncond_prompt = ""  # Also known as negative prompt
 # Combine the input image and the output image into a single image.
 # Image.fromarray(output_image)
 
-def generate_image(input_image, prompt, uncond_prompt="", strength=0.9, do_cfg=True, cfg_scale=8, sampler="ddpm", num_inference_steps=50, seed=42, progress_callback=None):
+def generate_image(
+    input_image=None,  # Allow None for text-to-image
+    prompt=str,
+    uncond_prompt="",
+    strength=0.9,
+    do_cfg=True,
+    cfg_scale=8,
+    sampler="ddpm",
+    num_inference_steps=50,
+    seed=42,
+    progress_callback=None
+):
     """
     Generate an image using the diffusion pipeline.
     
     Args:
-        input_image (PIL.Image.Image): Input image for the pipeline.
+        input_image (PIL.Image.Image, optional): Input image for the pipeline. None for text-to-image.
         prompt (str): Text prompt for image generation.
         uncond_prompt (str): Unconditional prompt (default: "").
         strength (float): Strength of the diffusion process (default: 0.9).
@@ -81,21 +98,32 @@ def generate_image(input_image, prompt, uncond_prompt="", strength=0.9, do_cfg=T
     
     Returns:
         numpy.ndarray: Generated image as a NumPy array (RGB).
+    
+    Raises:
+        FileNotFoundError: If model_file is missing.
     """
-    # Use existing pipeline and parameters from your demo.py
-    return pipeline.generate(
-        prompt=prompt,
-        uncond_prompt=uncond_prompt,
-        input_image=input_image,
-        strength=strength,
-        do_cfg=do_cfg,
-        cfg_scale=cfg_scale,
-        sampler_name=sampler,
-        n_inference_steps=num_inference_steps,
-        seed=seed,
-        models=models,
-        device=DEVICE,
-        idle_device="cpu",
-        tokenizer=tokenizer,
-        progress_callback=progress_callback
-    )
+    global _models
+    if _models is None:
+        if not model_file.exists():
+            raise FileNotFoundError(f"Checkpoint file missing: {model_file}")
+        _models = model_loader.preload_models_from_standard_weights(model_file, DEVICE)
+    
+    # Use existing pipeline and parameters
+    kwargs = {
+        "prompt": prompt,
+        "uncond_prompt": uncond_prompt,
+        "strength": strength,
+        "do_cfg": do_cfg,
+        "cfg_scale": cfg_scale,
+        "sampler_name": sampler,
+        "n_inference_steps": num_inference_steps,
+        "seed": seed,
+        "models": _models,
+        "device": DEVICE,
+        "idle_device": "cpu",
+        "tokenizer": tokenizer,
+        "progress_callback": progress_callback
+    }
+    if input_image is not None:
+        kwargs["input_image"] = input_image
+    return pipeline.generate(**kwargs)
