@@ -584,7 +584,8 @@ class ImageApp(QMainWindow):
                 self.cleanup()
                 return
         do_cfg = True
-        sampler = "ddpm"
+        # sampler = "ddpm"
+        sampler = "ddim"
         seed = DEFAULT_SEED
 
         image_path = self.image_path if self.current_mode in ["Image-to-Image", "Image-InPainting"] else None

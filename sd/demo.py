@@ -19,9 +19,7 @@ print(f"Using device: {DEVICE}")
 
 # Tokenizer (assuming files in sd/data/)
 tokenizer = CLIPTokenizer("./data/vocab.json", merges_file="./data/merges.txt")
-# Model file path
-project_root = Path(__file__).resolve().parents[2]  # From sd/ to code/
-model_file = project_root / "data" / "v1-5-pruned-emaonly.ckpt"
+model_file = "./data/v1-5-pruned-emaonly.ckpt"
 
 # Cache models to avoid reloading
 _models = None
@@ -104,8 +102,6 @@ def generate_image(
     """
     global _models
     if _models is None:
-        if not model_file.exists():
-            raise FileNotFoundError(f"Checkpoint file missing: {model_file}")
         _models = model_loader.preload_models_from_standard_weights(model_file, DEVICE)
     
     # Use existing pipeline and parameters

@@ -3,6 +3,7 @@ import time
 import numpy as np
 from tqdm import tqdm
 from sd.ddpm import DDPMSampler
+from sd.ddim import DDIMSampler
 
 WIDTH = 512
 HEIGHT = 512
@@ -77,8 +78,11 @@ def generate(
         if sampler_name == "ddpm":
             sampler = DDPMSampler(generator)
             sampler.set_inference_timesteps(n_inference_steps)
+        elif sampler_name == "ddim":
+            sampler = DDIMSampler(generator)
+            sampler.set_inference_timesteps(n_inference_steps)
         else:
-            raise ValueError("Unknown sampler value %s. ")
+            raise ValueError(f"Unknown sampler value '{sampler_name}'. Use 'ddpm' or 'ddim'.")
 
         latents_shape = (1, 4, LATENTS_HEIGHT, LATENTS_WIDTH)
 
