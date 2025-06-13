@@ -6,7 +6,14 @@ Minimizing the Procesing Time (Inference Time + Time taken till complete generat
 
 ---
 
-## Update 0.2.2: DDIM with Dynamic Step Skipping
+## Update 0.2.3: UI fix
+
+Fix:
+
+- For DDIM-DSS sampler: ETA becoming negative in UI display
+- Application crashing with ZeroDivisionError after running few inference steps (UI problem)
+
+## Update 0.2.2: DDIM with Dynamic Step Skipping(DSS)
 
 Features:
 

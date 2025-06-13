@@ -650,15 +650,20 @@ class ImageApp(QMainWindow):
         self.animation.start()
 
     def update_progress(self, step, total_steps, step_time):
-        self.total_steps = total_steps
+        # Handle dynamic total_steps for DDIM-DSS
+        if total_steps <= 0:
+            total_steps = max(1, self.total_steps or 1)  # Prevent division by zero
+        if self.total_steps is None or total_steps > self.total_steps:
+            self.total_steps = total_steps
         self.step_times.append(step_time)
-        self.progress_value = int((step + 1) / total_steps * 100)
+        # Calculate progress based on step and total_steps
+        self.progress_value = int(min((step + 1) / self.total_steps * 100, 100))  # Cap at 100%
         self.progress_bar.setValue(self.progress_value)
         if self.step_times:
             avg_step_time = sum(self.step_times) / len(self.step_times)
-            remaining_steps = total_steps - (step + 1)
+            remaining_steps = max(0, self.total_steps - (step + 1))  # Prevent negative ETA
             eta = avg_step_time * remaining_steps
-            self.eta_label.setText(f"ETA: {eta:.1f} s")
+            self.eta_label.setText(f"ETA: {max(0, eta):.1f} s")  # Ensure non-negative ETA
         else:
             self.eta_label.setText("ETA: -- s")
 

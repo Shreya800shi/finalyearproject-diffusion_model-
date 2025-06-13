@@ -151,16 +151,19 @@ def generate(
                 latents, next_t, skip_count = sampler.step(timestep, latents, model_output, prev_latents)
                 prev_latents = latents.clone()
                 sampler.timesteps = sampler.timesteps[sampler.current_step_idx:]
+                # Use initial n_inference_steps for progress reporting
+                if progress_callback:
+                    step_time = time.time() - step_start_time
+                    progress_callback(i, n_inference_steps, step_time)
+                    step_start_time = time.time()
                 if next_t == 0:
                     break
             else:
                 latents = sampler.step(timestep, latents, model_output)
-
-            # Call progress callback after each step
-            if progress_callback:
-                step_time = time.time() - step_start_time
-                progress_callback(i, len(sampler.timesteps), step_time)
-                step_start_time = time.time()
+                if progress_callback:
+                    step_time = time.time() - step_start_time
+                    progress_callback(i, len(sampler.timesteps), step_time)
+                    step_start_time = time.time()
 
         to_idle(diffusion)
 
