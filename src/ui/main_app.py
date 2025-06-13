@@ -3,7 +3,8 @@ import os
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QPushButton, QLineEdit, QProgressBar, QLabel, QFileDialog,
-    QMessageBox, QSizePolicy, QCheckBox, QDialog, QTextEdit, QScrollArea
+    QMessageBox, QSizePolicy, QCheckBox, QDialog, QTextEdit, QScrollArea,
+    QComboBox
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, QPropertyAnimation, QEasingCurve, pyqtProperty, QSize
 from PyQt5.QtGui import QPixmap, QColor
@@ -233,10 +234,39 @@ class ImageApp(QMainWindow):
         uncond_prompt_layout.addWidget(self.uncond_prompt)
         left_layout.addLayout(uncond_prompt_layout)
 
+        sampler_layout = QHBoxLayout()
+        self.sampler_label = QLabel("Sampler:")
+        self.sampler_label.setFont(LARGE_FONT)
+        self.sampler_label.setStyleSheet("margin: 10px;")
+        sampler_layout.addWidget(self.sampler_label)
+        self.sampler_dropdown = QComboBox()
+        self.sampler_dropdown.setFont(LARGE_FONT)
+        self.sampler_dropdown.addItems(["DDPM", "DDIM", "DDIM - Dynamic Step Skipping"])
+        self.sampler_dropdown.setStyleSheet("""
+            QComboBox {
+                padding: 15px;
+                margin: 10px;
+                border: 1px solid #cccccc;
+                border-radius: 5px;
+                background-color: white;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: url(down_arrow.png); /* Optional: Add an arrow icon */
+                width: 14px;
+                height: 14px;
+            }
+        """)
+        self.sampler_dropdown.setMinimumHeight(40)
+        sampler_layout.addWidget(self.sampler_dropdown)
+        left_layout.addLayout(sampler_layout)
+
         self.update_default_params_label()
         self.default_params_checkbox = QCheckBox(self.default_params_text)
         self.default_params_checkbox.setFont(LARGE_FONT)
-        self.default_params_checkbox.setStyleSheet("transform: scale(1.5); margin: 15px;")
+        self.default_params_checkbox.setStyleSheet("margin: 15px;")
         self.default_params_checkbox.setChecked(True)
         self.default_params_checkbox.stateChanged.connect(self.toggle_default_params)
         left_layout.addWidget(self.default_params_checkbox)
@@ -584,8 +614,13 @@ class ImageApp(QMainWindow):
                 self.cleanup()
                 return
         do_cfg = True
-        # sampler = "ddpm"
-        sampler = "ddim"
+        # Map dropdown selection to sampler value
+        sampler_map = {
+            "DDPM": "ddpm",
+            "DDIM": "ddim",
+            "DDIM - Dynamic Step Skipping": "ddim-dss"
+        }
+        sampler = sampler_map[self.sampler_dropdown.currentText()]
         seed = DEFAULT_SEED
 
         image_path = self.image_path if self.current_mode in ["Image-to-Image", "Image-InPainting"] else None

@@ -4,6 +4,7 @@ import numpy as np
 from tqdm import tqdm
 from sd.ddpm import DDPMSampler
 from sd.ddim import DDIMSampler
+from sd.ddim_dss import DDIMDSSSampler
 
 WIDTH = 512
 HEIGHT = 512
@@ -81,8 +82,11 @@ def generate(
         elif sampler_name == "ddim":
             sampler = DDIMSampler(generator)
             sampler.set_inference_timesteps(n_inference_steps)
+        elif sampler_name == "ddim-dss":
+            sampler = DDIMDSSSampler(generator)
+            sampler.set_inference_timesteps(n_inference_steps)
         else:
-            raise ValueError(f"Unknown sampler value '{sampler_name}'. Use 'ddpm' or 'ddim'.")
+            raise ValueError(f"Unknown sampler value '{sampler_name}'. Use 'ddpm', 'ddim', or 'ddim-dss'.")
 
         latents_shape = (1, 4, LATENTS_HEIGHT, LATENTS_WIDTH)
 
@@ -120,6 +124,7 @@ def generate(
         diffusion = models["diffusion"]
         diffusion.to(device)
 
+        prev_latents = None
         timesteps = tqdm(sampler.timesteps)
         step_start_time = time.time()
         for i, timestep in enumerate(timesteps):
@@ -141,8 +146,15 @@ def generate(
                 output_cond, output_uncond = model_output.chunk(2)
                 model_output = cfg_scale * (output_cond - output_uncond) + output_uncond
 
-            # (Batch_Size, 4, Latents_Height, Latents_Width) -> (Batch_Size, 4, Latents_Height, Latents_Width)
-            latents = sampler.step(timestep, latents, model_output)
+            # Handle sampler step (DDIM-DSS returns tuple)
+            if sampler_name == "ddim-dss":
+                latents, next_t, skip_count = sampler.step(timestep, latents, model_output, prev_latents)
+                prev_latents = latents.clone()
+                sampler.timesteps = sampler.timesteps[sampler.current_step_idx:]
+                if next_t == 0:
+                    break
+            else:
+                latents = sampler.step(timestep, latents, model_output)
 
             # Call progress callback after each step
             if progress_callback:
